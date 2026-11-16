@@ -429,63 +429,33 @@ pre.prompt {
 
 
 <script>
-/* ============================ BOOK DATA ============================
-   `lock` / `a` values are scrambled (see hash()). Ask Claude to change them.
-   Chapter blocks are empty on purpose until you say what goes in them.
-   ================================================================== */
-const BOOK = {
-  cover: { lock: "7augw40d7h" },
-  // Chapter Two's rings: click the lower ring, then the upper, then enter this word to open the next chapter.
-  secret: { chapter: "c2", lock: "1vdfxp0biiu", solves: "c2-secret" },   // password: XXVII
-  chapters: [
-    // after: "<puzzle id>" opens a chapter once that puzzle is solved ("<chapter id>-seen" = once that blank chapter has been opened).
-    // lock: one scrambled answer, a list of accepted answers, or null (open from the start).
-    // veiled: true blurs the chapter's name and makes it unclickable until it is open.
-    // after: id of a puzzle that opens the chapter once solved.
-    // scatter: { words } drifts those words around the chapter page.
-    { id: "c1", number: "One", subtitle: "Understanding of the World", riddle: "", lock: null,
-      blocks: [
-        { type: "riddle", id: "c1-shadow", title: "Riddle",
-          text: "What follows you all day but cannot be held in your hands?",
-          a: ["ekamd3c3vc", "10e04vag0rb", "gvdj5yg431"],
-          solvedText: "That is right. Chapter Two is open." }
-      ] },
-    { id: "c2", number: "Two",   subtitle: "", riddle: "", veiled: true, lock: null, after: "c1-shadow",
-      scatter: { words: ["follow", "ظل", "dust", "العالم", "hollow", "طريق", "echo", "صدى", "beneath", "ذاكرة",
-                         "ash", "نافذة", "again", "مرآة", "world", "همس", "جذر", "ليل", "ريح", "نور"] },
-      blocks: [] },
-    { id: "c3", number: "Three", subtitle: "", riddle: "", veiled: true, after: "c2-secret", lock: null, jumble: true, blocks: [] },
-    { id: "c4", number: "Four",  subtitle: "", riddle: "", veiled: true, after: "c3-seen", lock: null, blocks: [] },
-    { id: "c5", number: "Five", subtitle: "", riddle: "", veiled: true, after: "c4-seen", lock: null, blocks: [] },
-    { id: "c6", number: "Six", subtitle: "", riddle: "", veiled: true, after: "c5-seen", lock: null, blocks: [] },
-    { id: "c7", number: "Seven", subtitle: "", riddle: "", veiled: true, after: "c6-seen", lock: null, blocks: [] }
-  ]
-};
-
-/* ============================ ENGINE ============================ */
-const h53 = (s, seed = 0) => {
-  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
-  for (let i = 0, ch; i < s.length; i++) {
-    ch = s.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
-};
-const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
-const hash = s => h53("lotus|" + norm(s)).toString(36);
-const ok = (lock, value) => [].concat(lock).includes(hash(value));
-
-const KEY = "lotus:progress:v2";   // bump this number to reset every player's saved progress
-const fresh = () => ({ opened: false, unlocked: {}, solved: {}, ring: 0, current: BOOK.chapters[0].id });
+/* ============================ ENGINE ============================
+   The words, answers and chapters live on the keeper (a small server). This page only holds
+   the player's proofs of progress and asks the keeper for each chapter as it is earned. */
+const API = "https://lotus-keeper.thepetal.workers.dev";
+const KEY = "lotus:progress:v3";   // bump this number to reset every player's saved progress
+const fresh = () => ({ current: "c1", ring: 0, grants: {} });
 let state = fresh();
 try {
   const raw = localStorage.getItem(KEY);
-  if (raw) state = Object.assign(fresh(), JSON.parse(raw));
+  if (raw) { state = Object.assign(fresh(), JSON.parse(raw)); if (!state.grants || typeof state.grants !== "object") state.grants = {}; }
 } catch (e) { /* progress just will not persist */ }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+const opened = () => !!state.grants.cover;
+const addGrants = g => { if (g) { Object.assign(state.grants, g); save(); } };
+async function ask(op, body) {
+  const r = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" },
+    body: JSON.stringify(Object.assign({ op, grants: state.grants }, body)) });
+  if (r.status !== 200 && r.status !== 429) throw new Error("keeper " + r.status);
+  return r.json();
+}
+const DOWN = "The book cannot reach its keeper. Try again in a moment.";
+let TOC = [];
+async function refreshToc() {
+  const r = await ask("toc");
+  if (r.locked) { delete state.grants.cover; save(); return false; }
+  TOC = r.chapters; return true;
+}
 
 function el(tag, attrs, ...kids) {
   const n = document.createElement(tag);
@@ -693,18 +663,21 @@ document.addEventListener("keydown", e => {
 }, true);
 
 /* ---- cover ---- */
-document.getElementById("coverForm").addEventListener("submit", e => {
+document.getElementById("coverForm").addEventListener("submit", async e => {
   e.preventDefault();
-  if (state.opened) { Sound.open(); openBook(true); return; }
   const input = document.getElementById("coverWord");
   const msg = document.getElementById("coverMsg");
-  if (ok(BOOK.cover.lock, input.value)) {
-    msg.textContent = "";
-    state.opened = true; save();
+  if (opened()) { Sound.open(); openBook(true); return; }
+  msg.textContent = "";
+  let r;
+  try { r = await ask("check", { id: "cover", answer: input.value }); }
+  catch (err) { msg.textContent = DOWN; return; }
+  if (r.ok) {
+    addGrants(r.grants);
     Sound.open();
     openBook(true);
   } else {
-    msg.textContent = "The book stays shut.";
+    msg.textContent = r.wait ? "Too many tries. Wait a minute." : "The book stays shut.";
     Sound.pen();
     cover.classList.remove("shake"); void cover.offsetWidth; cover.classList.add("shake");
     input.select();
@@ -712,8 +685,11 @@ document.getElementById("coverForm").addEventListener("submit", e => {
 });
 
 let coverTimer = null;
-function openBook(animate) {
+async function openBook(animate) {
   clearTimeout(coverTimer);
+  try {
+    if (!(await refreshToc())) { setCoverMode(); document.getElementById("coverMsg").textContent = "The book has been resealed."; return; }
+  } catch (err) { document.getElementById("coverMsg").textContent = DOWN; return; }
   normalizeCurrent();
   spread.hidden = false;
   spread.style.opacity = ""; spread.style.transition = "";
@@ -744,7 +720,7 @@ function closeBook() {
   coverTimer = setTimeout(() => { spread.hidden = true; spread.style.opacity = ""; spread.style.transition = ""; }, 600);
 }
 function setCoverMode() {
-  const again = state.opened;
+  const again = opened();
   const input = document.getElementById("coverWord");
   document.querySelector("#coverForm label").hidden = again;
   input.hidden = again; input.required = !again; input.value = "";
@@ -753,19 +729,17 @@ function setCoverMode() {
 
 /* ---- contents ---- */
 const chTitle = ch => "Chapter " + ch.number + ":";
-// needs: "<chapter id>" keeps a chapter sealed (blurred) until that earlier chapter is open.
-const chOpen = ch => !!state.unlocked[ch.id] || (ch.after ? !!state.solved[ch.after]
-  : ch.needs ? (!ch.lock && chOpen(BOOK.chapters.find(c => c.id === ch.needs))) : !ch.lock);
+const chOpen = ch => !!ch.open;
 function normalizeCurrent() {
-  const ch = BOOK.chapters.find(c => c.id === state.current);
-  if (!ch || (ch.veiled && !chOpen(ch))) state.current = BOOK.chapters[0].id;
+  const ch = TOC.find(c => c.id === state.current);
+  if (!ch || ch.veil) state.current = TOC[0].id;
 }
 function renderToc() {
   toc.textContent = "";
   let veilIdx = 0;
-  BOOK.chapters.forEach(ch => {
-    const isOpen = chOpen(ch);
-    const veil = !!ch.veiled && !isOpen;
+  TOC.forEach(ch => {
+    const isOpen = ch.open;
+    const veil = ch.veil;
     const names = [el("b", { text: chTitle(ch) }), el("i", { text: ch.subtitle || "…" })];
     const t = el("span", { class: veil ? "t veil" : "t" }, veil ? el("span", { class: "vb" }, names) : names);
     if (veil) t.style.setProperty("--k", veilIdx++);
@@ -784,14 +758,28 @@ function renderToc() {
 
 /* ---- chapter page ---- */
 let jumbleTimer = null;
-function renderChapter() {
+let chapterToken = 0;
+async function renderChapter() {
   clearInterval(jumbleTimer);
-  const ch = BOOK.chapters.find(c => c.id === state.current) || BOOK.chapters[0];
-  buildChapter(ch);
-  if (ch.jumble) startJumble();
-  Sound.hum(!!ch.scatter && chOpen(ch));
-  if (chOpen(ch) && !ch.blocks.length && !state.solved[ch.id + "-seen"]) { state.solved[ch.id + "-seen"] = true; save(); renderToc(); }
+  const ch = TOC.find(c => c.id === state.current) || TOC[0];
+  const mine = ++chapterToken;
+  let data;
+  try {
+    data = await ask("chapter", { id: ch.id });
+    if (!data.ok) throw new Error("closed");
+  } catch (err) {
+    if (mine === chapterToken) {
+      page.textContent = ""; page.append(ringBottom, el("p", { class: "blank", text: DOWN }));
+      Sound.hum(false); paintRings();
+    }
+    return;
+  }
+  if (mine !== chapterToken) return;
+  buildChapter(ch, data);
+  if (data.jumble) startJumble();
+  Sound.hum(!!data.scatter && data.open);
   hideRingBox(); paintRings();
+  if (data.grants) { addGrants(data.grants); refreshToc().then(renderToc).catch(() => {}); }
 }
 
 /* Chapters with jumble:true keep reshuffling the order of their words. */
@@ -815,52 +803,59 @@ function startJumble() {
   jumbleTimer = setInterval(() => leaves.forEach(n => { if (n.isConnected) { shuffle(n._w); draw(n); } }), 2800);
 }
 
-function buildChapter(ch) {
+function buildChapter(ch, data) {
+  const isOpen = !!data.open;
   page.textContent = "";
   page.append(ringBottom);
-  page.classList.toggle("has-scatter", !!ch.scatter && chOpen(ch));
+  page.classList.toggle("has-scatter", !!data.scatter && isOpen);
   page.setAttribute("aria-label", chTitle(ch));
   const up = el("button", { type: "button", class: "up", text: "↑ Contents" });
   up.addEventListener("click", () => document.querySelector(".page.left").scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" }));
-  const veil = !!ch.veiled && !chOpen(ch);
-  const parts = [el("span", { class: "num", text: chTitle(ch) }), " ", el("span", { class: "sub", text: ch.subtitle || "…" })];
+  const veil = !!ch.veil;
+  const sub = (isOpen ? data.subtitle : ch.subtitle) || "…";
+  const parts = [el("span", { class: "num", text: chTitle(ch) }), " ", el("span", { class: "sub", text: sub })];
   const title = el("h2", { class: veil ? "chapter-title veil" : "chapter-title" }, veil ? el("span", { class: "vb" }, parts) : parts);
   page.append(up, title, el("span", { class: "orn" }));
 
-  if (!chOpen(ch)) {
+  if (!isOpen) {
     const seal = el("div", { class: "seal" }); seal.style.color = "#e9d6b0"; seal.append(icon(LOCK));
     const msg = el("p", { class: "msg", role: "status" });
     const input = el("input", { id: "chapterWord", type: "text", autocomplete: "off", autocapitalize: "off", spellcheck: "false", required: "" });
     const form = el("form", { class: "unlock", autocomplete: "off" },
       el("label", { for: "chapterWord", text: "Password or answer" }),
       input, el("button", { type: "submit", text: "Unlock" }), msg);
-    form.addEventListener("submit", e => {
+    form.addEventListener("submit", async e => {
       e.preventDefault();
-      if (ok(ch.lock, input.value)) {
-        state.unlocked[ch.id] = true; save(); Sound.page(); renderToc(); renderChapter();
+      let r;
+      try { r = await ask("check", { id: "unlock:" + ch.id, answer: input.value }); }
+      catch (err) { msg.textContent = DOWN; return; }
+      if (r.ok) {
+        addGrants(r.grants); Sound.page();
+        try { await refreshToc(); } catch (err) {}
+        renderToc(); renderChapter();
         page.classList.remove("fade-in"); void page.offsetWidth; page.classList.add("fade-in");
       } else {
-        msg.textContent = "That does not open this page.";
+        msg.textContent = r.wait ? "Too many tries. Wait a minute." : "That does not open this page.";
         form.classList.remove("shake"); void form.offsetWidth; form.classList.add("shake");
         input.select();
       }
     });
-    page.append(el("div", { class: "sealed" }, seal, ch.riddle ? el("p", { class: "riddle-text", text: ch.riddle }) : null, form));
+    page.append(el("div", { class: "sealed" }, seal, data.riddle ? el("p", { class: "riddle-text", text: data.riddle }) : null, form));
     return;
   }
 
-  if (ch.scatter) page.append(scatterLayer(ch.scatter.words));
-  if (!ch.blocks.length) {
-    if (!ch.scatter) page.append(el("p", { class: "blank", text: "Nothing is written here yet." }));
+  if (data.scatter) page.append(scatterLayer(data.scatter.words));
+  if (!data.blocks.length) {
+    if (!data.scatter) page.append(el("p", { class: "blank", text: "Nothing is written here yet." }));
     return;
   }
-  page.append(el("div", { class: "blocks" }, ch.blocks.map(renderBlock)));
+  page.append(el("div", { class: "blocks" }, data.blocks.map(renderBlock)));
 }
 
 /* ---- blocks ---- */
 function clueEl(text) { return el("div", { class: "clue" }, el("small", { text: "Clue" }), el("span", { text })); }
-const solvedEl = b => b.reward ? clueEl(b.reward)
-  : el("div", { class: "clue" }, el("small", { text: "Answered" }), el("span", { text: b.solvedText || "That is right." }));
+const solvedEl = r => r.reward ? clueEl(r.reward)
+  : el("div", { class: "clue" }, el("small", { text: "Answered" }), el("span", { text: r.solvedText || "That is right." }));
 
 function renderBlock(b) {
   switch (b.type) {
@@ -902,19 +897,22 @@ function puzzleBlock(b) {
   wrap.append(el(b.type === "cipher" ? "pre" : "p", { class: "prompt", text: b.text }));
   const slot = el("div");
   wrap.append(slot);
-  if (state.solved[b.id]) { slot.append(solvedEl(b)); return wrap; }
+  if (b.solved) { slot.append(solvedEl(b.solved)); return wrap; }
   const msg = el("p", { class: "msg", role: "status" });
   const input = el("input", { type: "text", id: "ans-" + b.id, autocomplete: "off", autocapitalize: "off", spellcheck: "false", required: "" });
   const form = el("form", { class: "unlock", style: "margin-inline:0" },
     el("label", { for: "ans-" + b.id, text: "Your answer" }), input, el("button", { type: "submit", text: "Answer" }), msg);
-  form.addEventListener("submit", e => {
+  form.addEventListener("submit", async e => {
     e.preventDefault();
-    if (ok(b.a, input.value)) {
-      state.solved[b.id] = true; save();
-      slot.textContent = ""; slot.append(solvedEl(b));
-      renderToc();
+    let r;
+    try { r = await ask("check", { id: b.id, answer: input.value }); }
+    catch (err) { msg.textContent = DOWN; return; }
+    if (r.ok) {
+      addGrants(r.grants);
+      slot.textContent = ""; slot.append(solvedEl(r));
+      refreshToc().then(renderToc).catch(() => {});
     } else {
-      msg.textContent = "Not yet.";
+      msg.textContent = r.wait ? "Too many tries. Wait a minute." : "Not yet.";
       form.classList.remove("shake"); void form.offsetWidth; form.classList.add("shake");
     }
   });
@@ -926,11 +924,13 @@ function secretBlock(b) {
   const wrap = el("div");
   const i = b.text.indexOf(b.word);
   const slot = el("div");
-  const show = () => { slot.textContent = ""; slot.append(clueEl(b.reward)); };
+  const show = reward => { slot.textContent = ""; slot.append(clueEl(reward)); };
   const hot = el("button", { type: "button", class: "hot", text: b.word });
-  hot.addEventListener("click", () => { state.solved[b.id] = true; save(); show(); });
+  hot.addEventListener("click", async () => {
+    try { const r = await ask("reveal", { id: b.id }); if (r.ok) { addGrants(r.grants); show(r.reward); } } catch (err) {}
+  });
   wrap.append(el("p", {}, b.text.slice(0, i), hot, b.text.slice(i + b.word.length)), slot);
-  if (state.solved[b.id]) show();
+  if (typeof b.reward === "string") show(b.reward);
   return wrap;
 }
 
@@ -1067,8 +1067,9 @@ ringBox.addEventListener("animationend", e => { if (e.animationName === "shake-c
 const ringMsg = document.getElementById("ringMsg");
 const ringBottomCore = el("button", { type: "button", class: "core", "aria-label": "A faint ring stain" });
 const ringBottom = el("div", { class: "ring ring-bottom" }, ringBottomCore);
-const ringDone = () => !BOOK.secret || !!state.solved[BOOK.secret.solves];
-const ringHere = () => !!BOOK.secret && state.current === BOOK.secret.chapter && !ringDone();
+const ringOf = () => { const c = TOC.find(x => x.id === state.current); return c && c.ring ? c.ring : null; };
+const ringHere = () => { const r = ringOf(); return !!r && !r.solved; };
+const ringDone = () => { const r = (TOC.find(x => x.ring) || {}).ring; return !r || !!r.solved; };
 function paintRings() {
   ringBottom.classList.toggle("lit", state.ring >= 1);
   ringTopWrap.classList.toggle("lit", state.ring >= 2);
@@ -1090,15 +1091,23 @@ ringTop.addEventListener("click", () => {
   if (!ringHere() || state.ring < 1) return;
   state.ring = 2; save(); paintRings(); showRingBox();
 });
-ringBox.addEventListener("submit", e => {
+ringBox.addEventListener("submit", async e => {
   e.preventDefault();
-  if (ok(BOOK.secret.lock, ringInput.value)) {
-    const next = BOOK.chapters[BOOK.chapters.findIndex(c => c.id === BOOK.secret.chapter) + 1];
-    state.solved[BOOK.secret.solves] = true; if (next) state.current = next.id; save();
+  const rc = ringOf();
+  if (!rc) return;
+  let r;
+  try { r = await ask("check", { id: rc.id, answer: ringInput.value }); }
+  catch (err) { ringMsg.textContent = DOWN; return; }
+  if (r.ok) {
+    addGrants(r.grants);
+    const at = TOC.findIndex(c => c.id === state.current);
+    try { await refreshToc(); } catch (err) {}
+    if (TOC[at + 1]) state.current = TOC[at + 1].id;
+    save();
     hideRingBox(); Sound.page(); renderToc(); renderChapter(); paintRings();
     page.classList.remove("fade-in"); void page.offsetWidth; page.classList.add("fade-in");
   } else {
-    ringMsg.textContent = "Nothing stirs.";
+    ringMsg.textContent = r.wait ? "Too many tries. Wait a minute." : "Nothing stirs.";
     ringBox.classList.remove("shake"); void ringBox.offsetWidth; ringBox.classList.add("shake");
     ringInput.select();
   }
