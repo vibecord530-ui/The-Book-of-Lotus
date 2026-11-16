@@ -454,9 +454,9 @@ const BOOK = {
       blocks: [] },
     { id: "c3", number: "Three", subtitle: "", riddle: "", veiled: true, lock: "xzuphrmjf",   jumble: true, blocks: [] },
     { id: "c4", number: "Four",  subtitle: "", riddle: "", veiled: true, lock: "1due9tkn3ef", blocks: [] },
-    { id: "c5", number: "Five", subtitle: "", riddle: "", lock: null, blocks: [] },
-    { id: "c6", number: "Six", subtitle: "", riddle: "", lock: null, blocks: [] },
-    { id: "c7", number: "Seven", subtitle: "", riddle: "", lock: null, blocks: [] }
+    { id: "c5", number: "Five", subtitle: "", riddle: "", veiled: true, needs: "c4", lock: null, blocks: [] },
+    { id: "c6", number: "Six", subtitle: "", riddle: "", veiled: true, needs: "c5", lock: null, blocks: [] },
+    { id: "c7", number: "Seven", subtitle: "", riddle: "", veiled: true, needs: "c6", lock: null, blocks: [] }
   ]
 };
 
@@ -751,7 +751,9 @@ function setCoverMode() {
 
 /* ---- contents ---- */
 const chTitle = ch => "Chapter " + ch.number + ":";
-const chOpen = ch => !!state.unlocked[ch.id] || (ch.after ? !!state.solved[ch.after] : !ch.lock);
+// needs: "<chapter id>" keeps a chapter sealed (blurred) until that earlier chapter is open.
+const chOpen = ch => !!state.unlocked[ch.id] || (ch.after ? !!state.solved[ch.after]
+  : ch.needs ? (!ch.lock && chOpen(BOOK.chapters.find(c => c.id === ch.needs))) : !ch.lock);
 function normalizeCurrent() {
   const ch = BOOK.chapters.find(c => c.id === state.current);
   if (!ch || (ch.veiled && !chOpen(ch))) state.current = BOOK.chapters[0].id;
