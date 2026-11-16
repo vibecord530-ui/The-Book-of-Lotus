@@ -200,7 +200,7 @@ h2.veil { width: fit-content; }
   position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 50%;
   background: transparent; pointer-events: auto; cursor: pointer;
 }
-.ring-top:not(.armed) .core, .ring.done .core { pointer-events: none; cursor: default; }
+.ring-top:not(.armed) .core, .ring-bottom:not(.live) .core, .ring.done .core { pointer-events: none; cursor: default; }
 .ring-bottom .core { inset: auto; left: 50%; top: 50%; width: 10px; height: 10px; transform: translate(-50%, -50%); }
 .ring-box {
   position: fixed; z-index: 7; left: 50%; top: 50%; translate: -50% -50%;
@@ -435,9 +435,10 @@ pre.prompt {
    ================================================================== */
 const BOOK = {
   cover: { lock: "7augw40d7h" },
-  // The two rings on the pages: click the lower, then the upper, then enter this word to open chapter "unlocks".
-  secret: { lock: "1vdfxp0biiu", unlocks: "c4" },   // password: XXVII
+  // Chapter Two's rings: click the lower ring, then the upper, then enter this word to open the next chapter.
+  secret: { chapter: "c2", lock: "1vdfxp0biiu", solves: "c2-secret" },   // password: XXVII
   chapters: [
+    // after: "<puzzle id>" opens a chapter once that puzzle is solved ("<chapter id>-seen" = once that blank chapter has been opened).
     // lock: one scrambled answer, a list of accepted answers, or null (open from the start).
     // veiled: true blurs the chapter's name and makes it unclickable until it is open.
     // after: id of a puzzle that opens the chapter once solved.
@@ -453,11 +454,11 @@ const BOOK = {
       scatter: { words: ["follow", "ظل", "dust", "العالم", "hollow", "طريق", "echo", "صدى", "beneath", "ذاكرة",
                          "ash", "نافذة", "again", "مرآة", "world", "همس", "جذر", "ليل", "ريح", "نور"] },
       blocks: [] },
-    { id: "c3", number: "Three", subtitle: "", riddle: "", veiled: true, lock: "xzuphrmjf",   jumble: true, blocks: [] },
-    { id: "c4", number: "Four",  subtitle: "", riddle: "", veiled: true, lock: "1due9tkn3ef", blocks: [] },
-    { id: "c5", number: "Five", subtitle: "", riddle: "", veiled: true, needs: "c4", lock: null, blocks: [] },
-    { id: "c6", number: "Six", subtitle: "", riddle: "", veiled: true, needs: "c5", lock: null, blocks: [] },
-    { id: "c7", number: "Seven", subtitle: "", riddle: "", veiled: true, needs: "c6", lock: null, blocks: [] }
+    { id: "c3", number: "Three", subtitle: "", riddle: "", veiled: true, after: "c2-secret", lock: null, jumble: true, blocks: [] },
+    { id: "c4", number: "Four",  subtitle: "", riddle: "", veiled: true, after: "c3-seen", lock: null, blocks: [] },
+    { id: "c5", number: "Five", subtitle: "", riddle: "", veiled: true, after: "c4-seen", lock: null, blocks: [] },
+    { id: "c6", number: "Six", subtitle: "", riddle: "", veiled: true, after: "c5-seen", lock: null, blocks: [] },
+    { id: "c7", number: "Seven", subtitle: "", riddle: "", veiled: true, after: "c6-seen", lock: null, blocks: [] }
   ]
 };
 
@@ -477,7 +478,7 @@ const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
 const hash = s => h53("lotus|" + norm(s)).toString(36);
 const ok = (lock, value) => [].concat(lock).includes(hash(value));
 
-const KEY = "lotus:progress:v1";
+const KEY = "lotus:progress:v2";   // bump this number to reset every player's saved progress
 const fresh = () => ({ opened: false, unlocked: {}, solved: {}, ring: 0, current: BOOK.chapters[0].id });
 let state = fresh();
 try {
@@ -789,6 +790,8 @@ function renderChapter() {
   buildChapter(ch);
   if (ch.jumble) startJumble();
   Sound.hum(!!ch.scatter && chOpen(ch));
+  if (chOpen(ch) && !ch.blocks.length && !state.solved[ch.id + "-seen"]) { state.solved[ch.id + "-seen"] = true; save(); renderToc(); }
+  hideRingBox(); paintRings();
 }
 
 /* Chapters with jumble:true keep reshuffling the order of their words. */
@@ -1064,11 +1067,13 @@ ringBox.addEventListener("animationend", e => { if (e.animationName === "shake-c
 const ringMsg = document.getElementById("ringMsg");
 const ringBottomCore = el("button", { type: "button", class: "core", "aria-label": "A faint ring stain" });
 const ringBottom = el("div", { class: "ring ring-bottom" }, ringBottomCore);
-const ringDone = () => !BOOK.secret || !!state.unlocked[BOOK.secret.unlocks];
+const ringDone = () => !BOOK.secret || !!state.solved[BOOK.secret.solves];
+const ringHere = () => !!BOOK.secret && state.current === BOOK.secret.chapter && !ringDone();
 function paintRings() {
   ringBottom.classList.toggle("lit", state.ring >= 1);
   ringTopWrap.classList.toggle("lit", state.ring >= 2);
-  ringTopWrap.classList.toggle("armed", state.ring >= 1 && !ringDone());   /* the upper ring only responds after the lower one */
+  ringBottom.classList.toggle("live", ringHere());
+  ringTopWrap.classList.toggle("armed", ringHere() && state.ring >= 1);   /* the upper ring only responds after the lower one */
   ringBottom.classList.toggle("done", ringDone());
   ringTopWrap.classList.toggle("done", ringDone());
 }
@@ -1078,17 +1083,18 @@ function showRingBox() {
   setTimeout(() => { if (!ringBox.hidden) ringInput.focus({ preventScroll: true }); }, reduced ? 0 : 900);
 }
 ringBottomCore.addEventListener("click", () => {
-  if (ringDone() || state.ring >= 1) return;
+  if (!ringHere() || state.ring >= 1) return;
   state.ring = 1; save(); paintRings();
 });
 ringTop.addEventListener("click", () => {
-  if (ringDone() || state.ring < 1) return;
+  if (!ringHere() || state.ring < 1) return;
   state.ring = 2; save(); paintRings(); showRingBox();
 });
 ringBox.addEventListener("submit", e => {
   e.preventDefault();
   if (ok(BOOK.secret.lock, ringInput.value)) {
-    state.unlocked[BOOK.secret.unlocks] = true; state.current = BOOK.secret.unlocks; save();
+    const next = BOOK.chapters[BOOK.chapters.findIndex(c => c.id === BOOK.secret.chapter) + 1];
+    state.solved[BOOK.secret.solves] = true; if (next) state.current = next.id; save();
     hideRingBox(); Sound.page(); renderToc(); renderChapter(); paintRings();
     page.classList.remove("fade-in"); void page.offsetWidth; page.classList.add("fade-in");
   } else {
