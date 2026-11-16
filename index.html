@@ -44,7 +44,7 @@ img { max-width: 100%; }
   --scratch: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 560'><g fill='none' stroke='%23d8c49a' stroke-opacity='.22' stroke-width='.8' stroke-linecap='round'><path d='M312 60 L352 71'/><path d='M40 410 L96 396'/><path d='M268 488 L330 470 L352 476'/><path d='M120 120 L150 118'/><path d='M60 250 L84 262 L120 258'/><path d='M300 300 L338 292'/><path d='M200 520 L246 514'/><path d='M350 190 L372 214'/><path d='M150 330 L176 352'/></g></svg>");
   --dust: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 560'><filter id='d'><feTurbulence type='fractalNoise' baseFrequency='.018' numOctaves='3' seed='4'/><feColorMatrix values='0 0 0 0 .55  0 0 0 0 .47  0 0 0 0 .34  0 0 0 .65 -.33'/></filter><rect width='400' height='560' filter='url(%23d)'/></svg>");
   --blotch-dark: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 560'><filter id='b'><feTurbulence type='fractalNoise' baseFrequency='.01' numOctaves='3' seed='9'/><feColorMatrix values='0 0 0 0 .02  0 0 0 0 .015  0 0 0 0 .01  0 0 0 1.4 -.52'/></filter><rect width='400' height='560' filter='url(%23b)'/></svg>");
-  --stain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 520' preserveAspectRatio='none'><filter id='b'><feTurbulence type='fractalNoise' baseFrequency='.011' numOctaves='3' seed='7'/><feColorMatrix values='0 0 0 0 .3  0 0 0 0 .18  0 0 0 0 .06  0 0 0 1.5 -.62'/></filter><rect width='400' height='520' filter='url(%23b)'/><g fill='%235a3a14' fill-opacity='.35'><circle cx='62' cy='88' r='2.2'/><circle cx='318' cy='140' r='1.6'/><circle cx='120' cy='330' r='2.6'/><circle cx='350' cy='402' r='1.8'/><circle cx='210' cy='470' r='2.1'/><circle cx='36' cy='440' r='1.5'/><circle cx='270' cy='60' r='1.3'/></g><circle cx='300' cy='96' r='34' fill='none' stroke='%235a3a14' stroke-opacity='.2' stroke-width='3'/></svg>");
+  --stain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 520' preserveAspectRatio='none'><filter id='b'><feTurbulence type='fractalNoise' baseFrequency='.011' numOctaves='3' seed='7'/><feColorMatrix values='0 0 0 0 .3  0 0 0 0 .18  0 0 0 0 .06  0 0 0 1.5 -.62'/></filter><rect width='400' height='520' filter='url(%23b)'/><g fill='%235a3a14' fill-opacity='.35'><circle cx='62' cy='88' r='2.2'/><circle cx='318' cy='140' r='1.6'/><circle cx='120' cy='330' r='2.6'/><circle cx='350' cy='402' r='1.8'/><circle cx='210' cy='470' r='2.1'/><circle cx='36' cy='440' r='1.5'/><circle cx='270' cy='60' r='1.3'/></g></svg>");
   color-scheme: dark;
 }
 </style>
@@ -187,6 +187,32 @@ button { font-family: var(--font-display); letter-spacing: 0.16em; cursor: point
 .veil .vb { display: block; filter: blur(calc(6px + var(--k, 0) * 2px)); opacity: calc(0.55 - var(--k, 0) * 0.15); }
 .veil::after { content: ""; position: absolute; inset: -2px; background: var(--grain-heavy); pointer-events: none; }
 h2.veil { width: fit-content; }
+/* the two ring stains: click the lower one, then the upper one */
+.ring {
+  position: absolute; z-index: 2; width: 17%; height: 13.08%; border-radius: 50%;
+  border: 3px solid rgba(90, 58, 20, 0.2); transform: translate(-50%, -50%);
+  pointer-events: none; transition: border-color 1.2s, box-shadow 1.2s;
+}
+.ring-top { left: 75%; top: 18.46%; }
+.ring-bottom { left: 25%; top: 81.54%; }
+.ring.lit { border-color: rgba(90, 58, 20, 0.34); box-shadow: 0 0 16px rgba(255, 214, 120, 0.22), inset 0 0 12px rgba(255, 214, 120, 0.12); }
+.ring .core {
+  position: absolute; left: 50%; top: 50%; width: 30%; height: 30%; min-width: 28px; min-height: 28px;
+  transform: translate(-50%, -50%); padding: 0; border: 0; border-radius: 50%;
+  background: transparent; pointer-events: auto; cursor: pointer;
+}
+.ring-box {
+  position: absolute; z-index: 4; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(86%, 300px); padding: 22px; gap: 10px;
+  background: linear-gradient(#1c1510, #0e0a07); border: 1px solid var(--gold-dim); border-radius: 6px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.8);
+  opacity: 0; pointer-events: none; transition: opacity 1.8s ease;
+}
+.ring-box.show { opacity: 1; pointer-events: auto; }
+.ring-box.shake { animation: shake-c 0.4s; }
+@keyframes shake-c { 20%, 60% { translate: -6px 0; } 40%, 80% { translate: 6px 0; } }
+@media (prefers-reduced-motion: reduce) { .ring-box { transition: none; } }
+
 .page ::selection { background: var(--ink); color: var(--parch-hi); }
 .page h2 {
   margin: 0; text-align: center; font-family: var(--font-display); font-weight: 400;
@@ -374,9 +400,16 @@ pre.prompt {
       <h2>Contents</h2>
       <span class="orn"></span>
       <ol class="toc" id="toc"></ol>
+      <div class="ring ring-top"><button class="core" id="ringTop" type="button" aria-label="A faint ring stain"></button></div>
       <button class="back" id="closeBtn" type="button">← Close the book</button>
     </article>
     <article class="page right" id="chapterPage"></article>
+    <form class="clasp ring-box" id="ringBox" hidden autocomplete="off">
+      <label for="ringWord">Speak the word</label>
+      <input id="ringWord" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+      <button type="submit">Speak</button>
+      <p class="msg" id="ringMsg" role="status"></p>
+    </form>
   </section>
 </main>
 
@@ -389,6 +422,8 @@ pre.prompt {
    ================================================================== */
 const BOOK = {
   cover: { lock: "7augw40d7h" },
+  // The two rings on the pages: click the lower, then the upper, then enter this word to open chapter "unlocks".
+  secret: { lock: "f7o6g0ngcl", unlocks: "c4" },   // placeholder word: Ring
   chapters: [
     // lock: one scrambled answer, a list of accepted answers, or null (open from the start).
     // veiled: true blurs the chapter's name and makes it unclickable until it is open.
@@ -427,7 +462,7 @@ const hash = s => h53("lotus|" + norm(s)).toString(36);
 const ok = (lock, value) => [].concat(lock).includes(hash(value));
 
 const KEY = "lotus:progress:v1";
-const fresh = () => ({ opened: false, unlocked: {}, solved: {}, current: BOOK.chapters[0].id });
+const fresh = () => ({ opened: false, unlocked: {}, solved: {}, ring: 0, current: BOOK.chapters[0].id });
 let state = fresh();
 try {
   const raw = localStorage.getItem(KEY);
@@ -665,7 +700,8 @@ function openBook(animate) {
   normalizeCurrent();
   spread.hidden = false;
   spread.style.opacity = ""; spread.style.transition = "";
-  renderToc(); renderChapter();
+  hideRingBox();
+  renderToc(); renderChapter(); paintRings();
   if (animate && !reduced) {
     spread.classList.remove("reveal"); void spread.offsetWidth; spread.classList.add("reveal");
     cover.hidden = false; cover.classList.add("opening");
@@ -760,6 +796,7 @@ function startJumble() {
 
 function buildChapter(ch) {
   page.textContent = "";
+  page.append(ringBottom);
   page.classList.toggle("has-scatter", !!ch.scatter && chOpen(ch));
   page.setAttribute("aria-label", chTitle(ch));
   const up = el("button", { type: "button", class: "up", text: "↑ Contents" });
@@ -995,6 +1032,49 @@ function secretBlock(b) {
   build();
   let t; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(build, 300); });
 })();
+
+/* ---- the two rings: click the lower one, then the upper one, and a hidden password box fades in ---- */
+const ringTop = document.getElementById("ringTop");
+const ringTopWrap = ringTop.parentElement;
+const ringBox = document.getElementById("ringBox");
+const ringInput = document.getElementById("ringWord");
+const ringMsg = document.getElementById("ringMsg");
+const ringBottomCore = el("button", { type: "button", class: "core", "aria-label": "A faint ring stain" });
+const ringBottom = el("div", { class: "ring ring-bottom" }, ringBottomCore);
+const ringDone = () => !BOOK.secret || !!state.unlocked[BOOK.secret.unlocks];
+function paintRings() {
+  ringBottom.classList.toggle("lit", state.ring >= 1);
+  ringTopWrap.classList.toggle("lit", state.ring >= 2);
+}
+function hideRingBox() { ringBox.classList.remove("show"); ringBox.hidden = true; ringMsg.textContent = ""; ringInput.value = ""; }
+function showRingBox() {
+  ringBox.hidden = false; void ringBox.offsetWidth; ringBox.classList.add("show");
+  setTimeout(() => { if (!ringBox.hidden) ringInput.focus({ preventScroll: true }); }, reduced ? 0 : 900);
+}
+ringBottomCore.addEventListener("click", () => {
+  if (ringDone() || state.ring >= 1) return;
+  state.ring = 1; save(); paintRings();
+});
+ringTop.addEventListener("click", () => {
+  if (ringDone() || state.ring < 1) return;
+  state.ring = 2; save(); paintRings(); showRingBox();
+});
+ringBox.addEventListener("submit", e => {
+  e.preventDefault();
+  if (ok(BOOK.secret.lock, ringInput.value)) {
+    state.unlocked[BOOK.secret.unlocks] = true; state.current = BOOK.secret.unlocks; save();
+    hideRingBox(); Sound.page(); renderToc(); renderChapter(); paintRings();
+    page.classList.remove("fade-in"); void page.offsetWidth; page.classList.add("fade-in");
+  } else {
+    ringMsg.textContent = "Nothing stirs.";
+    ringBox.classList.remove("shake"); void ringBox.offsetWidth; ringBox.classList.add("shake");
+    ringInput.select();
+  }
+});
+document.addEventListener("click", e => {
+  if (!ringBox.hidden && !ringBox.contains(e.target) && e.target !== ringTop) hideRingBox();
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !ringBox.hidden) hideRingBox(); });
 
 /* ---- start ---- */
 document.getElementById("closeBtn").addEventListener("click", closeBook);
