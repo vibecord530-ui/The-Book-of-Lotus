@@ -259,7 +259,9 @@ pre.prompt {
 /* vignette over the whole scene */
 .vignette {
   position: fixed; inset: 0; pointer-events: none; z-index: 5;
-  background: radial-gradient(ellipse at center, transparent 52%, rgba(0, 0, 0, 0.45) 82%, rgba(0, 0, 0, 0.78) 100%);
+  background:
+    radial-gradient(ellipse 75% 70% at center, transparent 26%, rgba(0, 0, 0, 0.5) 62%, rgba(0, 0, 0, 0.88) 90%, rgba(0, 0, 0, 0.97) 100%);
+  box-shadow: inset 0 0 14vmin 4vmin rgba(0, 0, 0, 0.85);
 }
 
 /* sound toggle */
