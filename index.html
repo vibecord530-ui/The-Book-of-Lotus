@@ -995,8 +995,10 @@ function secretBlock(b) {
 
 /* ---- start ---- */
 document.getElementById("closeBtn").addEventListener("click", closeBook);
+/* a refresh always lands on the front cover; progress is kept, and Open (no password again) returns to your place */
 setCoverMode();
-if (state.opened) openBook(false);
+history.scrollRestoration = "manual";
+window.scrollTo(0, 0);
 </script>
 </body>
 </html>
