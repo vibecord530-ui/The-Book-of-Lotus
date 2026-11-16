@@ -345,34 +345,48 @@ pre.prompt {
 /* folder block */
 .folder {
   position: relative; margin: 1.4rem auto 0.6rem; width: min(100%, 22rem); aspect-ratio: 4 / 3;
-  transform: rotate(-1.2deg); animation: folderIn 1.1s ease-out both;
+  transform: rotate(-1.2deg); animation: folderIn 1.1s ease-out both; perspective: 1100px;
   filter: drop-shadow(0 10px 14px rgba(0,0,0,0.45));
 }
 .folder::before {
   content: ""; position: absolute; left: 0; top: 0; width: 42%; height: 12%;
   background: #a98a55; border-radius: 6px 12px 0 0; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
 }
+.folder .fback, .folder .fbody { position: absolute; inset: 9% 0 0 0; border-radius: 0 8px 6px 6px; }
+.folder .fback {
+  background: #8a6d3c; box-shadow: inset 0 0 0 1px rgba(60,40,15,0.5), inset 0 0 24px rgba(40,25,8,0.5);
+  padding: 6% 5%; display: flex;
+}
+.folder .paper {
+  flex: 1; min-width: 0; background: #e9dcb8 repeating-linear-gradient(0deg, transparent 0 1.6rem, rgba(90,60,25,0.16) 1.6rem calc(1.6rem + 1px));
+  color: #2b1f10; padding: 0.7rem 0.9rem; overflow: auto; text-align: start; font-size: 0.95rem; line-height: 1.6rem;
+  box-shadow: inset 0 0 14px rgba(90,60,25,0.25);
+}
+.folder .paper > * { margin: 0 0 0.4rem; }
 .folder .fbody {
-  position: absolute; inset: 9% 0 0 0; border-radius: 0 8px 6px 6px;
+  z-index: 3; transform-origin: top center; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  transition: transform 1.5s cubic-bezier(.55, 0, .25, 1);
   background: linear-gradient(160deg, #b99a63, #9a7b46 70%, #8a6d3c);
   box-shadow: inset 0 0 0 1px rgba(60,40,15,0.45), inset 0 0 28px rgba(50,32,10,0.35);
   display: flex; align-items: center; justify-content: center; padding: 1.2rem calc(9% + 1rem) 1.2rem 1.2rem;
 }
+.folder.open .fbody { transform: rotateX(112deg); }
+.folder.still .fbody { transition: none; }
 .folder .label {
+  position: relative; z-index: 2;
   background: #e9dcb8; color: #2b1f10; padding: 0.9rem 1.1rem; max-width: 100%;
   border: 1px solid rgba(60,40,15,0.5); text-align: center; transform: rotate(0.8deg);
   font-family: var(--font-ar); font-size: clamp(1.25rem, 5vw, 1.7rem); line-height: 1.7;
 }
 .folder .strip {
-  position: absolute; top: 9%; bottom: 0; right: 0; width: 9%; border-radius: 0 8px 6px 0; z-index: 1;
+  position: absolute; top: 0; bottom: 0; right: 4%; width: 9%; z-index: 1;
   background: linear-gradient(90deg, #1d3f8f, #2f5fc4 50%, #1d3f8f);
   box-shadow: inset 0 0 0 1px rgba(10,20,60,0.5), 1px 0 3px rgba(0,0,0,0.35);
   opacity: 0.92;
 }
 .folder .strip::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 5px); }
-.folder .label { position: relative; z-index: 2; }
 @keyframes folderIn { from { opacity: 0; transform: translateY(14px) rotate(-3deg); } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .folder { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .folder { animation: none; } .folder .fbody { transition: none; } }
 /* jumbled chapter */
 .jw {
   display: inline-block;
@@ -899,7 +913,25 @@ function renderBlock(b) {
     }
     case "folder": {
       const lab = el("div", { class: "label", lang: b.lang || "ar", dir: b.dir || "rtl", text: b.text });
-      return el("div", { class: "folder", role: "img", "aria-label": b.alt || "A folder" }, el("div", { class: "fbody" }, el("span", { class: "strip", "aria-hidden": "true" }), lab));
+      const paper = el("div", { class: "paper" });
+      const fill = list => { paper.textContent = ""; (list || []).forEach(x => { const n = renderBlock(x); if (n) paper.append(n); }); };
+      fill(b.inside);
+      const f = el("div", { class: "folder" + (b.open ? " open still" : ""), role: "img", "aria-label": b.alt || "A folder" },
+        el("div", { class: "fback" }, paper),
+        el("div", { class: "fbody" }, el("span", { class: "strip", "aria-hidden": "true" }), lab));
+      if (b.opens && !b.open) document.addEventListener("lotus:solved", async e => {
+        if (e.detail !== b.opens || !f.isConnected) return;
+        f.classList.add("open");
+        try { if (typeof Sound !== "undefined") Sound.page(); } catch (err) {}
+        try {
+          if (typeof ask === "function" && typeof state !== "undefined") {
+            const d = await ask("chapter", { id: state.current });
+            const fb = (d.blocks || []).find(x => x.type === "folder");
+            if (fb) fill(fb.inside);
+          }
+        } catch (err) {}
+      });
+      return f;
     }
     case "secret": return secretBlock(b);
     case "riddle":
@@ -944,7 +976,7 @@ function puzzleBlock(b) {
     try { r = await ask("check", { id: b.id, answer: input.value }); }
     catch (err) { msg.textContent = DOWN; return; }
     if (r.ok) {
-      addGrants(r.grants);
+      addGrants(r.grants); document.dispatchEvent(new CustomEvent("lotus:solved", { detail: b.id }));
       slot.textContent = ""; slot.append(solvedEl(r));
       refreshToc().then(renderToc).catch(() => {});
     } else {
