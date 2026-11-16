@@ -363,6 +363,14 @@ pre.prompt {
   border: 1px solid rgba(60,40,15,0.5); text-align: center; transform: rotate(0.8deg);
   font-family: var(--font-ar); font-size: clamp(1.25rem, 5vw, 1.7rem); line-height: 1.7;
 }
+.folder .strip {
+  position: absolute; top: 9%; bottom: 0; left: 14%; width: 9%; z-index: 1;
+  background: linear-gradient(90deg, #1d3f8f, #2f5fc4 50%, #1d3f8f);
+  box-shadow: inset 0 0 0 1px rgba(10,20,60,0.5), 1px 0 3px rgba(0,0,0,0.35);
+  opacity: 0.92;
+}
+.folder .strip::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 5px); }
+.folder .label { position: relative; z-index: 2; }
 @keyframes folderIn { from { opacity: 0; transform: translateY(14px) rotate(-3deg); } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .folder { animation: none; } }
 /* jumbled chapter */
@@ -457,7 +465,7 @@ pre.prompt {
    The words, answers and chapters live on the keeper (a small server). This page only holds
    the player's proofs of progress and asks the keeper for each chapter as it is earned. */
 const API = "https://lotus-keeper.thepetal.workers.dev";
-const KEY = "lotus:progress:v3";   // bump this number to reset every player's saved progress
+const KEY = "lotus:progress:v4";   // bump this number to reset every player's saved progress
 const fresh = () => ({ current: "c1", ring: 0, grants: {} });
 let state = fresh();
 try {
@@ -891,7 +899,7 @@ function renderBlock(b) {
     }
     case "folder": {
       const lab = el("div", { class: "label", lang: b.lang || "ar", dir: b.dir || "rtl", text: b.text });
-      return el("div", { class: "folder", role: "img", "aria-label": b.alt || "A folder" }, el("div", { class: "fbody" }, lab));
+      return el("div", { class: "folder", role: "img", "aria-label": b.alt || "A folder" }, el("div", { class: "fbody" }, el("span", { class: "strip", "aria-hidden": "true" }), lab));
     }
     case "secret": return secretBlock(b);
     case "riddle":
