@@ -202,16 +202,27 @@ h2.veil { width: fit-content; }
 }
 .ring-bottom .core { inset: auto; left: 50%; top: 50%; width: 10px; height: 10px; transform: translate(-50%, -50%); }
 .ring-box {
-  position: absolute; z-index: 4; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: min(86%, 300px); padding: 22px; gap: 10px;
+  position: fixed; z-index: 7; left: 50%; top: 50%; translate: -50% -50%;
+  width: min(86vw, 300px); padding: 22px; gap: 10px;
   background: linear-gradient(#1c1510, #0e0a07); border: 1px solid var(--gold-dim); border-radius: 6px;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.8);
   opacity: 0; pointer-events: none; transition: opacity 1.8s ease;
+  animation: ring-drift 7s ease-in-out infinite;
 }
 .ring-box.show { opacity: 1; pointer-events: auto; }
+/* the box sways gently like the drifting words, and holds still while you point at it or type */
+.ring-box:hover, .ring-box:focus-within { animation-play-state: paused; }
+@keyframes ring-drift {
+  0%, 100% { transform: translate(0, 0) rotate(-0.8deg); }
+  25% { transform: translate(4px, -5px) rotate(0.7deg); }
+  50% { transform: translate(-3px, 4px) rotate(1deg); }
+  75% { transform: translate(-5px, -3px) rotate(-0.5deg); }
+}
 .ring-box.shake { animation: shake-c 0.4s; }
-@keyframes shake-c { 20%, 60% { translate: -6px 0; } 40%, 80% { translate: 6px 0; } }
-@media (prefers-reduced-motion: reduce) { .ring-box { transition: none; } }
+@keyframes shake-c { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.ring-box label .w { display: inline-block; white-space: pre; animation: ring-wave 2.6s ease-in-out infinite; animation-delay: calc(var(--i) * -0.2s); }
+@keyframes ring-wave { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-3px) rotate(3deg); } }
+@media (prefers-reduced-motion: reduce) { .ring-box, .ring-box label .w { transition: none; animation: none; } }
 
 .page ::selection { background: var(--ink); color: var(--parch-hi); }
 .page h2 {
@@ -796,7 +807,7 @@ function startJumble() {
 
 function buildChapter(ch) {
   page.textContent = "";
-  page.append(ringBottom, ringBox);
+  page.append(ringBottom);
   page.classList.toggle("has-scatter", !!ch.scatter && chOpen(ch));
   page.setAttribute("aria-label", chTitle(ch));
   const up = el("button", { type: "button", class: "up", text: "↑ Contents" });
@@ -1038,6 +1049,11 @@ const ringTop = document.getElementById("ringTop");
 const ringTopWrap = ringTop.parentElement;
 const ringBox = document.getElementById("ringBox");
 const ringInput = document.getElementById("ringWord");
+const ringLabel = ringBox.querySelector("label");
+ringLabel.setAttribute("aria-label", ringLabel.textContent);
+ringLabel.textContent = "";
+[..."Speak the word"].forEach((ch, i) => { const w = el("span", { class: "w", "aria-hidden": "true", text: ch }); w.style.setProperty("--i", i); ringLabel.append(w); });
+ringBox.addEventListener("animationend", e => { if (e.animationName === "shake-c") ringBox.classList.remove("shake"); });
 const ringMsg = document.getElementById("ringMsg");
 const ringBottomCore = el("button", { type: "button", class: "core", "aria-label": "A faint ring stain" });
 const ringBottom = el("div", { class: "ring ring-bottom" }, ringBottomCore);
