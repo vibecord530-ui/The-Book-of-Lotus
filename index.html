@@ -200,6 +200,7 @@ h2.veil { width: fit-content; }
   position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 50%;
   background: transparent; pointer-events: auto; cursor: pointer;
 }
+.ring-top:not(.armed) .core, .ring.done .core { pointer-events: none; cursor: default; }
 .ring-bottom .core { inset: auto; left: 50%; top: 50%; width: 10px; height: 10px; transform: translate(-50%, -50%); }
 .ring-box {
   position: fixed; z-index: 7; left: 50%; top: 50%; translate: -50% -50%;
@@ -1067,6 +1068,9 @@ const ringDone = () => !BOOK.secret || !!state.unlocked[BOOK.secret.unlocks];
 function paintRings() {
   ringBottom.classList.toggle("lit", state.ring >= 1);
   ringTopWrap.classList.toggle("lit", state.ring >= 2);
+  ringTopWrap.classList.toggle("armed", state.ring >= 1 && !ringDone());   /* the upper ring only responds after the lower one */
+  ringBottom.classList.toggle("done", ringDone());
+  ringTopWrap.classList.toggle("done", ringDone());
 }
 function hideRingBox() { ringBox.classList.remove("show"); ringBox.hidden = true; ringMsg.textContent = ""; ringInput.value = ""; }
 function showRingBox() {
