@@ -507,7 +507,7 @@ pre.prompt {
 /* ============================ ENGINE ============================
    The words, answers and chapters live on the keeper (a small server). This page only holds
    the player's proofs of progress and asks the keeper for each chapter as it is earned. */
-const API = "https://lotus-keeper.thepetal.workers.dev";
+const API = "https://lotus-keeper-d5ed2d77.thepetal.workers.dev";
 const KEY = "lotus:progress:v4";   // bump this number to reset every player's saved progress
 const fresh = () => ({ current: "c1", ring: 0, grants: {} });
 let state = fresh();
