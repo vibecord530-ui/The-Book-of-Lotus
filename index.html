@@ -390,17 +390,10 @@ pre.prompt {
 .folder.open:not(.still) { animation: folderOpen 2.2s ease-out; }
 .folder.open:not(.still) .fbody { transition-delay: 0.5s; }
 .folder.open:not(.still) .strip { animation: stripFlash 0.6s ease-in; }
-.folder.open:not(.still)::after { animation: folderGlow 2.4s ease-out 0.35s both; }
-.folder::after {   /* light leaking out as the cover lifts */
-  content: ""; position: absolute; inset: 9% 0 0 0; border-radius: 0 8px 6px 6px; pointer-events: none; z-index: 4; opacity: 0;
-  box-shadow: 0 0 36px 10px rgba(255, 236, 190, 0.9), inset 0 0 30px 6px rgba(255, 236, 190, 0.7);
-}
-@keyframes folderGlow { 0% { opacity: 0; } 22% { opacity: 1; } 55% { opacity: 0.55; } 100% { opacity: 0; } }
 @keyframes stripFlash { 0%, 100% { filter: none; } 40% { filter: brightness(2.6) saturate(1.4); } }
 @keyframes folderOpen {
-  0% { transform: rotate(-1.2deg); } 6% { transform: rotate(-2.4deg) translate(-3px, 1px); } 12% { transform: rotate(-0.2deg) translate(3px, -1px); }
-  18% { transform: rotate(-2.2deg) translate(-2px, 2px); } 24% { transform: rotate(-0.5deg) translate(3px, 0); } 30% { transform: rotate(-1.8deg) translate(-1px, -1px); }
-  45% { transform: rotate(-1.2deg) translateY(-6px) scale(1.03); } 100% { transform: rotate(-1.2deg); }
+  0% { transform: rotate(-1.2deg); } 10% { transform: rotate(-1.7deg) translate(-1px, 0); } 20% { transform: rotate(-0.8deg) translate(1px, 0); }
+  30% { transform: rotate(-1.5deg) translate(-1px, 1px); } 45% { transform: rotate(-1.2deg) translateY(-2px); } 100% { transform: rotate(-1.2deg); }
 }
 @keyframes paperGlitch {
   0%, 100% { transform: none; filter: none; } 15% { transform: translateX(-4px); filter: contrast(1.6) hue-rotate(60deg); }
@@ -562,7 +555,7 @@ const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 /* ---- sound: synthesized with Web Audio, no audio files ---- */
 const Sound = (() => {
   const AC = window.AudioContext || window.webkitAudioContext;
-  let ctx = null, master = null, noiseBuf = null, muted = false, wantHum = false, hum = null;
+  let ctx = null, master = null, noiseBuf = null, muted = false, wantHum = false, hum = null;   // wantHum: false, "whisper" or "chant"
   try { muted = localStorage.getItem("lotus:muted") === "1"; } catch (e) {}
   const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -655,21 +648,48 @@ const Sound = (() => {
   /* chapter two: a low hum with whispers drifting past */
   function whisper() {
     if (!hum) return;
-    const t = ctx.currentTime + 0.05, dur = rand(0.9, 2.1);
+    const chant = hum.mode === "chant";
+    const t = ctx.currentTime + 0.05, dur = chant ? rand(1.8, 3.6) : rand(0.9, 2.1);
     const s = noise(t, dur + 0.2), bp = ctx.createBiquadFilter(), g = ctx.createGain();
-    bp.type = "bandpass"; bp.Q.value = 6;
-    bp.frequency.setValueAtTime(rand(500, 1800), t); bp.frequency.linearRampToValueAtTime(rand(500, 2400), t + dur);
-    env(g, t, dur * 0.4, 0.03, dur * 0.6);
+    bp.type = "bandpass"; bp.Q.value = chant ? 4 : 6;
+    if (chant) { bp.frequency.setValueAtTime(rand(260, 520), t); bp.frequency.linearRampToValueAtTime(rand(300, 760), t + dur); }
+    else { bp.frequency.setValueAtTime(rand(500, 1800), t); bp.frequency.linearRampToValueAtTime(rand(500, 2400), t + dur); }
+    env(g, t, dur * 0.4, chant ? 0.035 : 0.03, dur * 0.6);
     s.connect(bp); bp.connect(g);
     if (ctx.createStereoPanner) {
       const p = ctx.createStereoPanner();
       p.pan.setValueAtTime(rand(-0.8, 0.8), t); p.pan.linearRampToValueAtTime(rand(-0.8, 0.8), t + dur);
       g.connect(p); p.connect(master);
     } else g.connect(master);
-    hum.timer = setTimeout(whisper, rand(1200, 4200));
+    hum.timer = setTimeout(whisper, hum.mode === "chant" ? rand(1800, 4800) : rand(1200, 4200));
+  }
+  /* chapter three: a low, droning, many-voiced chant under the book */
+  function startChant() {
+    const out = ctx.createGain(); out.gain.value = 0.0001; out.connect(master);
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1100; lp.connect(out);
+    const nodes = [];
+    const forms = [[430, 0.9], [820, 0.55], [2400, 0.12]].map(([f, a]) => {
+      const bp = ctx.createBiquadFilter(), g = ctx.createGain();
+      bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = 4; g.gain.value = a;
+      bp.connect(g); g.connect(lp); return bp;
+    });
+    [[65.41, 0.5], [98.0, 0.34], [130.81, 0.3], [155.56, 0.2], [196.0, 0.1]].forEach(([f, amp]) => {
+      [-9, 8].forEach(det => {
+        const o = ctx.createOscillator(), g = ctx.createGain(), v = ctx.createOscillator(), vg = ctx.createGain();
+        o.type = "sawtooth"; o.frequency.value = f; o.detune.value = det + rand(-3, 3);
+        v.frequency.value = rand(0.2, 0.5); vg.gain.value = rand(6, 14); v.connect(vg); vg.connect(o.detune); v.start();
+        g.gain.value = amp * 0.5; o.connect(g); forms.forEach(bp => g.connect(bp)); o.start(); nodes.push(o, v);
+      });
+    });
+    const lfo = ctx.createOscillator(), lg = ctx.createGain();
+    lfo.frequency.value = 0.11; lg.gain.value = 0.035; lfo.connect(lg); lg.connect(out.gain); lfo.start(); nodes.push(lfo);
+    out.gain.setTargetAtTime(0.085, ctx.currentTime, 1.6);
+    hum = { out, nodes, timer: null, mode: "chant" };
+    hum.timer = setTimeout(whisper, 1500);
   }
   function startHum() {
     if (hum || !ctx || ctx.state !== "running" || muted) return;
+    if (wantHum === "chant") return startChant();
     const out = ctx.createGain(); out.gain.value = 0.0001; out.connect(master);
     const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 420; lp.connect(out);
     const vib = ctx.createOscillator(), vg = ctx.createGain();
@@ -683,7 +703,7 @@ const Sound = (() => {
     const lfo = ctx.createOscillator(), lg = ctx.createGain();
     lfo.frequency.value = 0.18; lg.gain.value = 0.02; lfo.connect(lg); lg.connect(out.gain); lfo.start(); nodes.push(lfo);
     out.gain.setTargetAtTime(0.06, ctx.currentTime, 0.9);
-    hum = { out, nodes, timer: null };
+    hum = { out, nodes, timer: null, mode: "whisper" };
     hum.timer = setTimeout(whisper, 600);
   }
   function stopHum() {
@@ -693,10 +713,10 @@ const Sound = (() => {
     try { h.out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.4); } catch (e) {}
     setTimeout(() => { h.nodes.forEach(n => { try { n.stop(); } catch (e) {} }); try { h.out.disconnect(); } catch (e) {} }, 2000);
   }
-  function setHum(on) {
-    wantHum = on;
+  function setHum(on, mode) {
+    wantHum = on ? (mode || "whisper") : false;
     if (!on) stopHum();
-    else if (ctx && ctx.state === "running") startHum();
+    else if (ctx && ctx.state === "running") { if (hum && hum.mode !== wantHum) stopHum(); startHum(); }
   }
 
   /* browsers only allow sound after a click or key press */
@@ -859,7 +879,7 @@ async function renderChapter() {
   if (mine !== chapterToken) return;
   buildChapter(ch, data);
   if (data.jumble) startJumble();
-  Sound.hum(!!data.scatter && data.open);
+  Sound.hum(!!data.open && (!!data.scatter || (data.blocks || []).some(x => x.type === "folder")), data.scatter ? "whisper" : "chant");
   hideRingBox(); paintRings();
   if (data.grants) { addGrants(data.grants); refreshToc().then(renderToc).catch(() => {}); }
 }
