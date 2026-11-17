@@ -364,8 +364,8 @@ pre.prompt {
 }
 .folder .paper > * { margin: 0 0 0.4rem; filter: blur(7px); opacity: 0.45; }
 .folder .paper::after {   /* black static over everything inside */
-  content: ""; position: absolute; inset: -60%; pointer-events: none; opacity: 0.55; mix-blend-mode: screen;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .8  0 0 0 0 .8  0 0 0 0 .8  1.8 1.8 0 0 -1.15'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  content: ""; position: absolute; inset: -60%; pointer-events: none; opacity: 0.3; mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .6  0 0 0 0 .6  0 0 0 0 .6  2.4 2.4 0 0 -1.7'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   animation: staticShift 0.4s steps(1) infinite;
 }
 .folder .paper::before {   /* a slow dark band rolling through the static */
