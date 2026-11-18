@@ -523,12 +523,25 @@ try {
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
 const opened = () => !!state.grants.cover;
 const addGrants = g => { if (g) { Object.assign(state.grants, g); save(); } };
+const lockLeft = () => Math.max(0, Math.ceil(((state.lockLocal || 0) - Date.now()) / 1000));
+const waitMsg = () => "The book holds still. Wait " + lockLeft() + "s.";
+const wrongMsg = (r, text) => r.wait ? waitMsg() : text + (r.lock ? " " + waitMsg() : "");
 async function ask(op, body) {
+  if (op === "check" && lockLeft() > 0) return { ok: false, wait: true };   // a wrong answer locks answering for a minute
   const r = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" },
-    body: JSON.stringify(Object.assign({ op, grants: state.grants }, body)) });
+    body: JSON.stringify(Object.assign({ op, grants: state.grants, lock: state.lock }, body)) });
   if (r.status !== 200 && r.status !== 429) throw new Error("keeper " + r.status);
-  return r.json();
+  const j = await r.json();
+  if (j.lock) { state.lock = j.lock; state.lockLocal = Date.now() + (j.seconds || 60) * 1000; save(); }
+  else if (j.wait) { state.lockLocal = Date.now() + (j.seconds || 60) * 1000; save(); }
+  return j;
 }
+setInterval(() => {
+  const n = lockLeft();
+  document.querySelectorAll(".msg").forEach(m => {
+    if (/The book holds still\. Wait \d+s\./.test(m.textContent)) m.textContent = m.textContent.replace(/The book holds still\. Wait \d+s\./, n > 0 ? "The book holds still. Wait " + n + "s." : "").trim();
+  });
+}, 1000);
 const DOWN = "The book cannot reach its keeper. Try again in a moment.";
 let TOC = [];
 async function refreshToc() {
@@ -784,7 +797,7 @@ document.getElementById("coverForm").addEventListener("submit", async e => {
     Sound.open();
     openBook(true);
   } else {
-    msg.textContent = r.wait ? "Too many tries. Wait a minute." : "The book stays shut.";
+    msg.textContent = wrongMsg(r, "The book stays shut.");
     Sound.pen();
     cover.classList.remove("shake"); void cover.offsetWidth; cover.classList.add("shake");
     input.select();
@@ -942,7 +955,7 @@ function buildChapter(ch, data) {
         renderToc(); renderChapter();
         page.classList.remove("fade-in"); void page.offsetWidth; page.classList.add("fade-in");
       } else {
-        msg.textContent = r.wait ? "Too many tries. Wait a minute." : "That does not open this page.";
+        msg.textContent = wrongMsg(r, "That does not open this page.");
         form.classList.remove("shake"); void form.offsetWidth; form.classList.add("shake");
         input.select();
       }
@@ -1061,7 +1074,7 @@ function puzzleBlock(b) {
       slot.textContent = ""; slot.append(solvedEl(r));
       refreshToc().then(renderToc).catch(() => {});
     } else {
-      msg.textContent = r.wait ? "Too many tries. Wait a minute." : "Not yet.";
+      msg.textContent = wrongMsg(r, "Not yet.");
       form.classList.remove("shake"); void form.offsetWidth; form.classList.add("shake");
     }
   });
@@ -1256,7 +1269,7 @@ ringBox.addEventListener("submit", async e => {
     hideRingBox(); Sound.page(); renderToc(); renderChapter(); paintRings();
     page.classList.remove("fade-in"); void page.offsetWidth; page.classList.add("fade-in");
   } else {
-    ringMsg.textContent = r.wait ? "Too many tries. Wait a minute." : "Nothing stirs.";
+    ringMsg.textContent = wrongMsg(r, "Nothing stirs.");
     ringBox.classList.remove("shake"); void ringBox.offsetWidth; ringBox.classList.add("shake");
     ringInput.select();
   }
