@@ -897,7 +897,7 @@ async function renderChapter() {
   if (mine !== chapterToken) return;
   buildChapter(ch, data);
   if (data.jumble) startJumble();
-  Sound.hum(!!data.open && (!!data.scatter || (data.blocks || []).some(x => x.type === "folder")), data.scatter ? "whisper" : "chant");
+  Sound.hum(!!data.open && ((!!data.scatter && !data.scatter.quiet) || (data.blocks || []).some(x => x.type === "folder")), data.scatter ? "whisper" : "chant");
   hideRingBox(); paintRings();
   if (data.grants) { addGrants(data.grants); refreshToc().then(renderToc).catch(() => {}); }
 }
