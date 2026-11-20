@@ -964,7 +964,7 @@ function buildChapter(ch, data) {
     return;
   }
 
-  if (data.scatter) page.append(scatterLayer(data.scatter.words));
+  if (data.scatter) page.append(scatterLayer(data.scatter.words, data.scatter.count));
   if (!data.blocks.length) {
     if (!data.scatter) page.append(el("p", { class: "blank", text: "Nothing is written here yet." }));
     return;
@@ -1034,10 +1034,10 @@ function renderBlock(b) {
   return null;
 }
 
-function scatterLayer(words) {
+function scatterLayer(words, count) {
   const layer = el("div", { class: "scatter", "aria-hidden": "true" });
   const r = (a, b) => a + Math.random() * (b - a);
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < (count || 28); i++) {
     const w = words[i % words.length];
     const ar = /[؀-ۿ]/.test(w);
     const s = el("span", { class: ar ? "sw ar" : "sw", text: w });
